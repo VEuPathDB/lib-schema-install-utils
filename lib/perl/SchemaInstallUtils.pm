@@ -1,5 +1,6 @@
 package SchemaInstallUtils; 
 
+use strict;
 use Exporter;
 use DBI;
 
@@ -11,7 +12,7 @@ sub getDbh {
 
   die "illegal dbVendor: $dbVendor" unless $dbVendor eq 'Oracle' || $dbVendor eq 'Postgres';
 
-  my $dbiDsn = $dbVendor eq 'Oracle'? "dbi:Oracle:$dbName" : "dbiDsn=dbi:Pg:dbname=$dbName;host=$host";
+  my $dbiDsn = $dbVendor eq 'Oracle'? "dbi:Oracle:$dbName" : "dbi:Pg:dbname=$dbName;host=$dbHost";
 
   return DBI->connect($dbiDsn,
 		      $dbLogin,
@@ -37,7 +38,7 @@ sub runSql {
 sub runSqlOracle {
   my ($login, $password, $dbName, $fullFile, $allowFailures, @params) = @_;
 
-  my $tmpFile = "/tmp/$file.$$";  # append the process id
+  my $tmpFile = "/tmp/$fullFile.$$";  # append the process id
   unlink($tmpFile);  # in case of a old one
   my $cmd;
   if (!$allowFailures) {
@@ -161,21 +162,15 @@ sub dropSchemaSetPostgres {
 
   print STDOUT "\nFixing to drop schemas in set \"@schemaSet\"\n";
 
+  my $count;
   for my $schema (@schemaSet) {
-    my $stmt = $dbh->prepare(<<SQL);
-    DROP SCHEMA $schema CASCADE;
-SQL
-
-    $stmt->execute() or print STDOUT "\n" . $dbh->errstr . "\n";
-
-    my $count = 0;
-    while (my ($dropStmtSql) = $stmt->fetchrow_array()) {
-      print STDOUT "\nrunning statement: $dropStmtSql\n";
-      $dbh->do($dropStmtSql) or die "Can't fetch a drop statement: $DBI::errstr\n";
-      $count++;
-    }
-    return $count;
+    my $s = "DROP SCHEMA $schema CASCADE";
+    print STDOUT "\nrunning statement: $s\n";
+    my $success = $dbh->do($s);
+    print STDOUT $success? "Succeeded\n" : "Failed\n";
+    $count += $success? 1 : 0;
   }
+  return $count;
 }
 
 1;
